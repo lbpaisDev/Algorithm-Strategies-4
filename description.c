@@ -5,6 +5,7 @@
 int n, m, q;
 int adj[1001][1001][2];
 int circuits[1001];
+int num_elements[1001];
 
 void print_adj()
 {
@@ -42,20 +43,75 @@ void get_circuits()
                     adj[i][j][1] = 1;
                     if(j == i)
                     {
-                        if(adj[k][k][1] == 1)
+                        if(circuits[i] == 0 && circuits[k] == 0)
                         {
-                            circuits[i] = circuits[k];
+                            circuits[i] = group_num;
+                            circuits[k] = group_num;
+                            group_num++;
+                        }
+                        else if(circuits[i] != 0 && circuits[k] != 0 && circuits[i] != circuits[k])
+                        {
+                            if(circuits[i] < circuits[k])
+                            {
+                                circuits[k] = circuits[i];
+                            }
+                            else
+                            {
+                                circuits[i] = circuits[k];
+                            }
                         }
                         else
                         {
-                            circuits[i] = group_num;
-                            group_num++;
+                            if(circuits[i] == 0)
+                            {
+                                circuits[i] = circuits[k];
+                            }
+                            else
+                            {
+                                circuits[k] = circuits[i];
+                            }
                         }
                     }
                 }
             }
         }
+        print_circuits();
     }
+}
+
+int num_circuits()
+{
+    int max = 0;
+
+    for(int i = 1; i <= n; i++)
+    {
+        if(circuits[i] > max)
+        {
+            max = circuits[i];
+        }
+    }
+
+    return max;
+}
+
+int get_num_elements()
+{
+    int max = 0;
+
+    for(int i = 1; i <= n; i++)
+    {
+        if(circuits[i] > 0)
+        {
+            num_elements[circuits[i]]++;
+        }
+        
+        if(num_elements[circuits[i]] > max)
+        {
+            max = num_elements[circuits[i]];
+        }
+    }
+
+    return max;
 }
 
 int main()
@@ -66,9 +122,9 @@ int main()
     while (n_tests > 0)
     {
         scanf("%d %d %d", &n, &m, &q);
-        memset(adj, 0, (n + 1) * (n + 1) * 2 * sizeof(int));
-        memset(circuits, 0, (n + 1) * sizeof(int));
-
+        memset(adj, 0, (n + 1) * (n + 1) * 2 * sizeof(*adj));
+        memset(circuits, 0, (n + 1) * sizeof(*circuits));
+        
         int A, B, W;
         for (int i = 0; i < m; i++)
         {
@@ -77,14 +133,17 @@ int main()
             adj[A][B][0] = W;
             adj[A][B][1] = 1;
         }
-
     
-        print_adj();
         get_circuits();
-        printf("-------------------------------\n");
-        print_adj();
-        printf("-------------------------------\n");
-        print_circuits();
+        printf("%d", num_circuits());
+
+        if(q > 1)
+        {
+            memset(num_elements, 0, (n + 1) * sizeof(*num_elements));
+            printf(" %d", get_num_elements());
+        }
+    
+        printf("\n");
         n_tests--;
     }
 }
