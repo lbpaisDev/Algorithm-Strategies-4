@@ -13,6 +13,12 @@ int t;
 int n_circuits;
 int n_pois;
 
+int n_elements[501];
+int verts[1001];
+int set[1001];
+int rank[1001];
+int circuits_verts[1001];
+
 //===== DEBUG FUNCTIONS
 void print_aux_arrays(int arr[], char *array)
 {
@@ -141,6 +147,18 @@ typedef struct circuits
     struct circuits *next;
 } Circuit;
 
+Circuit *head_circuit = NULL;
+
+typedef struct edges
+{
+    int edge[2];
+    int weight;
+    struct edges *next;
+
+} Edges;
+
+Edges *edges_list;
+
 POIs *create_poi(int vertex, POIs *next)
 {
     POIs *new_node = (POIs *)malloc(sizeof(POIs));
@@ -256,7 +274,41 @@ void print_circuit(Circuit *header)
     }
 }
 
-Circuit *head_circuit = NULL;
+void insert_edge(int edge[2], int weight)
+{
+    Edges *new_edge = (Edges *)malloc(sizeof(Edges));
+    new_edge->edge[0] = edge[0];
+    new_edge->edge[1] = edge[1];
+    new_edge->weight = weight;
+    new_edge->next = NULL;
+
+    Edges *actual = edges_list, *prev = NULL;
+    while (actual != NULL && actual->weight <= weight)
+    {
+        prev = actual;
+        actual = actual->next;
+    }
+
+    if (actual == NULL && prev == NULL)
+    {
+        edges_list = new_edge;
+        return;
+    }
+
+    if (actual != NULL)
+    {
+        new_edge->next = actual;
+    }
+
+    if (prev != NULL)
+    {
+        prev->next = new_edge;
+    }
+    else
+    {
+        edges_list = new_edge;
+    }
+}
 
 //===== END OF LINKED LISTS OF LINKED LIST IMPLEMENTATION
 
@@ -366,10 +418,186 @@ void dfs()
     }
 }
 
-//Answer 3
-int longest_lane = 0;
-//Answer 4
-int total_lane_length = 0;
+void get_circuits_verts()
+{
+    Circuit *ptr_circuit = head_circuit;
+    for (int i = 0; ptr_circuit != NULL; i++)
+    {
+        POIs *ptr_poi = ptr_circuit->poi;
+        for (int j = 0; ptr_poi != NULL; j++)
+        {
+            circuits_verts[ptr_poi->vertex] = i;
+            ptr_poi = ptr_poi->next;
+        }
+        ptr_circuit = ptr_circuit->next;
+    }
+}
+
+int get_num_circuits()
+{
+    int max = 0;
+
+    for (int i = 1; i <= n; i++)
+    {
+        if (circuits_verts[i] > max)
+        {
+            max = circuits_verts[i];
+        }
+    }
+
+    return max;
+}
+
+int get_num_elements()
+{
+    int max = 0;
+
+    for (int i = 1; i <= n; i++)
+    {
+        if (circuits_verts[i] > 0)
+        {
+            n_elements[circuits_verts[i]]++;
+        }
+
+        if (n_elements[circuits_verts[i]] > max)
+        {
+            max = n_elements[circuits_verts[i]];
+        }
+    }
+
+    return max;
+}
+
+void get_verts(int num_circuit)
+{
+    int vert = 1;
+    for (int i = 1; i <= n; i++)
+    {
+        if (circuits_verts[i] == num_circuit)
+        {
+            verts[vert] = i;
+            vert++;
+        }
+    }
+}
+
+void make_set(int num_elements)
+{
+    for (int i = 1; i <= num_elements; i++)
+    {
+        set[verts[i]] = verts[i];
+        rank[verts[i]] = 0;
+    }
+}
+
+int get_sorted_edges(int num_elements)
+{
+    int num_edges = 0;
+
+    for (int i = 1; i <= num_elements; i++)
+    {
+        for (int j = 1; j <= num_elements; j++)
+        {
+            if (dist[verts[i]][verts[j]] != 0)
+            {
+                int edge[2] = {verts[i], verts[j]};
+                insert_edge(edge, dist[verts[i]][verts[j]]);
+                num_edges++;
+            }
+        }
+    }
+
+    return num_edges;
+}
+
+int find_set(int a)
+{
+    if (set[a] != a)
+    {
+        set[a] = find_set(set[a]);
+    }
+    return set[a];
+}
+
+void link(int a, int b)
+{
+    if (rank[a] > rank[b])
+    {
+        set[b] = a;
+    }
+    else
+    {
+        set[a] = b;
+    }
+
+    if (rank[a] == rank[b])
+    {
+        rank[b]++;
+    }
+}
+
+void union_verts(int a, int b)
+{
+    link(find_set(a), find_set(b));
+}
+
+int sum_lane(int lane[][2], int num_edges)
+{
+    int sum = 0;
+    for (int i = 0; i < num_edges; i++)
+    {
+        sum += dist[lane[i][0]][lane[i][1]];
+    }
+
+    return sum;
+}
+
+int get_lane_comps(int num_elements, int num_edges)
+{
+    make_set(num_elements);
+
+    int lane[num_edges][2], edge = 0;
+    while (edges_list != NULL)
+    {
+        if (find_set(edges_list->edge[0]) != find_set(edges_list->edge[1]))
+        {
+            lane[edge][0] = edges_list->edge[0];
+            lane[edge][1] = edges_list->edge[1];
+            edge++;
+            union_verts(edges_list->edge[0], edges_list->edge[1]);
+        }
+
+        Edges *prev = edges_list;
+        edges_list = edges_list->next;
+        free(prev);
+    }
+
+    return sum_lane(lane, edge);
+}
+
+int longest_lane(int *lane_comps, int num_circuits)
+{
+    int max = 0;
+    for (int i = 0; i < num_circuits; i++)
+    {
+        if (lane_comps[i] > max)
+        {
+            max = lane_comps[i];
+        }
+    }
+    return max;
+}
+
+int sum_lanes(int *lane_comps, int num_circuits)
+{
+    int sum = 0;
+    for (int i = 0; i < num_circuits; i++)
+    {
+        sum += lane_comps[i];
+    }
+
+    return sum;
+}
 
 int main()
 {
@@ -411,20 +639,37 @@ int main()
         //Driver function
         dfs();
 
-        //Print answers
+        get_circuits_verts();
         printf("%d", n_circuits);
+
         if (q > 1)
         {
+            memset(n_elements, 0, (n + 1) * sizeof(*n_elements));
+            get_num_elements();
+
             printf(" %d", n_pois);
         }
+
+        int lane_comps[n_circuits];
         if (q > 2)
         {
-            printf(" %d", longest_lane);
+            for (int i = 1; i <= n_circuits; i++)
+            {
+                int num_elements = n_elements[i];
+                get_verts(i);
+                edges_list = NULL;
+                int num_edges = get_sorted_edges(num_elements);
+                lane_comps[i - 1] = get_lane_comps(num_elements, num_edges);
+            }
+
+            printf(" %d", longest_lane(lane_comps, n_circuits));
         }
+
         if (q > 3)
         {
-            printf(" %d", total_lane_length);
+            printf(" %d", sum_lanes(lane_comps, n_circuits));
         }
+
         printf("\n");
 
         delete_circuit(head_circuit);
