@@ -2,181 +2,434 @@
 #include <stdio.h>
 #include <string.h>
 
-#define INT_MIN -1
+#define DEBUG 0
 
-//Problem variables
 int n, m, q;
 
-//Tarjan algorithm variables
-int t = 0;
-int adj[100000][100000];
-int low[100000];
-int dfs[100000];
+int adj[1001][1001];
+int dist[1001][1001];
 
-//Minimum value function
-int min(int a, int b)
+int t;
+int n_circuits;
+int n_pois;
+
+//===== DEBUG FUNCTIONS
+void print_aux_arrays(int arr[], char *array)
 {
-    return a < b ? a : b;
+    printf("%s ->", array);
+    for (int i = 1; i < n + 1; i++)
+    {
+        printf(" %d", arr[i]);
+    }
+    printf("\n");
 }
 
-//==== QUEUE IMPLEMENTATION FROM GEEKSFORGEEKS
-//https://www.geeksforgeeks.org/queue-set-1introduction-and-array-implementation/
-
-// A structure to represent a queue
-struct Queue
+void print_adj()
 {
-    int front, rear;
-    unsigned size, capacity;
+    printf("-> ADJACENCY MATRIX\n");
+    for (int i = 1; i < n + 1; i++)
+    {
+        printf("[ ");
+        for (int j = 1; j < n + 1; j++)
+        {
+            printf("%d ", adj[i][j]);
+        }
+        printf(" ]\n");
+    }
+}
+
+void print_dist()
+{
+    printf("-> DISTANCE MATRIX\n");
+    for (int i = 1; i < n + 1; i++)
+    {
+        printf("[ ");
+        for (int j = 1; j < n + 1; j++)
+        {
+            printf("%d ", dist[i][j]);
+        }
+        printf(" ]\n");
+    }
+}
+
+//===== END OF DEBUG FUNCTIONS
+
+//===== STACK IMPLEMENTATION
+//Stack structure
+struct Stack
+{
+    int top;
+    int capacity;
     int *array;
 };
 
-// function to create a queue
-// of given capacity.
-// It initializes size of queue as 0
-struct Queue *createQueue(int capacity)
+//Allocate memory for stack
+struct Stack *create_stack(unsigned capacity)
 {
-    struct Queue *queue = (struct Queue *)malloc(
-        sizeof(struct Queue));
-    queue->capacity = capacity;
-    queue->front = queue->size = 0;
+    struct Stack *stack = (struct Stack *)malloc(sizeof(struct Stack));
 
-    // This is important, see the enqueue
-    queue->rear = capacity - 1;
-    queue->array = (int *)malloc(
-        queue->capacity * sizeof(int));
-    return queue;
+    stack->capacity = capacity;
+    stack->top = -1;
+    stack->array = (int *)malloc(stack->capacity * sizeof(int));
+
+    return stack;
 }
 
-// Queue is full when size becomes
-// equal to the capacity
-int isFull(struct Queue *queue)
+//Check if the stack is full
+int is_full(struct Stack *stack)
 {
-    return (queue->size == queue->capacity);
+    return stack->top == stack->capacity - 1;
 }
 
-// Queue is empty when size is 0
-int isEmpty(struct Queue *queue)
+//Check if the stack is empty
+int is_empty(struct Stack *stack)
 {
-    return (queue->size == 0);
+    return stack->top == -1;
 }
 
-// Function to get front of queue
-int front(struct Queue *queue)
+//Push into the stack
+void push(struct Stack *stack, int data)
 {
-    if (isEmpty(queue))
-        return INT_MIN;
-    return queue->array[queue->front];
-}
-
-// Function to get rear of queue
-int rear(struct Queue *queue)
-{
-    if (isEmpty(queue))
-        return INT_MIN;
-    return queue->array[queue->rear];
-}
-
-// Function to add an item to the queue.
-// It changes rear and size
-void push(struct Queue *queue, int item)
-{
-    if (isFull(queue))
+    //If there's no space left return
+    if (is_full(stack))
         return;
-    queue->rear = (queue->rear + 1) % queue->capacity;
-    queue->array[queue->rear] = item;
-    queue->size = queue->size + 1;
+
+    stack->array[++stack->top] = data;
+
+    if (DEBUG)
+        printf("%d pushed to stack\n", data);
 }
 
-// Function to remove an item from queue.
-// It changes front and size
-int dequeue(struct Queue *queue)
+//Pop an item from the stack
+int pop(struct Stack *stack)
 {
-    if (isEmpty(queue))
-        return INT_MIN;
-    int item = queue->array[queue->front];
-    queue->front = (queue->front + 1) % queue->capacity;
-    queue->size = queue->size - 1;
-    return item;
+    //If its empty do nothing
+    if (is_empty(stack))
+        return -1;
+
+    int popped = stack->array[stack->top--];
+    if (DEBUG)
+        printf("%d popped from stack\n", popped);
+
+    return popped;
 }
 
-void p3(int v)
+//See data on top
+int peek(struct Stack *stack)
 {
-    int n_circuits, n_POIS, longest_lane, total_lane_length = 0;
-
-    int w;
-
-    low[v] = dfs[v] = t;
-    t = t + 1;
-
-    struct Queue *S = createQueue(100000);
-
-    push(S, v);
-    for (int i = 1; i <= adj[v][0]; i++)
+    if (is_empty(stack))
     {
-        w = adj[v][0];
-        if (dfs[w] == 0)
+        return -1;
+    }
+    return stack->array[stack->top];
+}
+//===== END OF STACK IMPLEMENTATION
+
+//===== LINKED LISTS OF LINKED LIST IMPLEMENTATION
+
+typedef struct poi_list
+{
+    int vertex;
+    struct poi_list *next;
+
+} POIs;
+
+typedef struct circuits
+{
+    POIs *poi;
+
+    struct circuits *next;
+} Circuit;
+
+POIs *create_poi(int vertex, POIs *next)
+{
+    POIs *new_node = (POIs *)malloc(sizeof(POIs));
+
+    new_node->vertex = vertex;
+    new_node->next = next;
+
+    return new_node;
+}
+
+POIs *insert_poi(POIs *head, int vertex)
+{
+    if (head == NULL)
+        return NULL;
+
+    POIs *cursor = head;
+    while (cursor->next != NULL)
+        cursor = cursor->next;
+
+    POIs *new_node = create_poi(vertex, NULL);
+    cursor->next = new_node;
+
+    return head;
+}
+
+void delete_poi(POIs *header)
+{
+    POIs *cursor, *tmp;
+
+    if (header != NULL)
+    {
+        cursor = header->next;
+        header->next = NULL;
+        while (cursor != NULL)
         {
-            p3(w);
-            low[v] = min(low[v], low[w]);
+            tmp = cursor->next;
+            free(cursor);
+            cursor = tmp;
         }
-        else if (w == front(S))
-        {
-            low[v] = min(low[v], dfs[w]);
-        }
-    }
-
-    if (low[v] = dfs)
-    {
-        struct Queue *C = createQueue(100000);
-        do
-        {
-            w = pop(S);
-            push(C, w);
-        } while (w != v);
-
-        struct Queue *Scc = createQueue(100000);
-
-        push(Scc, C);
-    }
-
-    if (q == 1)
-    {
-        printf("%d\n", n_circuits);
-    }
-    else if (q == 2)
-    {
-        printf("%d %d\n", n_circuits, n_POIS);
-    }
-    else if (q == 3)
-    {
-        printf("%d %d %d\n", n_circuits, n_POIS, longest_lane);
-    }
-    else if (q == 4)
-    {
-        printf("%d %d %d %d\n", n_circuits, n_POIS, longest_lane, total_lane_length);
     }
 }
+
+void print_pois(POIs *header)
+{
+    if (header == NULL)
+    {
+        return;
+    }
+    POIs *ptr = header;
+    while (ptr != NULL)
+    {
+        if (ptr->vertex != -1)
+            printf(" %d ", ptr->vertex);
+        ptr = ptr->next;
+    }
+    printf("\n");
+}
+
+Circuit *create_circuit(POIs *header, Circuit *next)
+{
+    Circuit *new_node = (Circuit *)malloc(sizeof(Circuit));
+
+    new_node->poi = header;
+    new_node->next = next;
+
+    return new_node;
+}
+
+Circuit *insert_circuit(Circuit *head, POIs *header)
+{
+    if (head == NULL)
+        return NULL;
+
+    Circuit *cursor = head;
+    while (cursor->next != NULL)
+        cursor = cursor->next;
+
+    Circuit *new_node = create_circuit(header, NULL);
+    cursor->next = new_node;
+
+    return head;
+}
+
+void delete_circuit(Circuit *header)
+{
+    Circuit *cursor, *tmp;
+
+    if (header != NULL)
+    {
+        cursor = header->next;
+        header->next = NULL;
+        while (cursor != NULL)
+        {
+            tmp = cursor->next;
+            delete_poi(cursor->poi);
+            free(cursor);
+            cursor = tmp;
+        }
+    }
+}
+
+void print_circuit(Circuit *header)
+{
+    if (header == NULL)
+    {
+        return;
+    }
+    Circuit *ptr = header;
+    while (ptr != NULL)
+    {
+        print_pois(ptr->poi);
+        ptr = ptr->next;
+    }
+}
+
+Circuit *head_circuit = NULL;
+
+//===== END OF LINKED LISTS OF LINKED LIST IMPLEMENTATION
+
+//===== AUXILIARY FUNCTIONS
+//Return min of two numbers
+int min(int a, int b)
+{
+    return (a < b) ? a : b;
+}
+//===== END OF AUXILIARY FUNCTIONS
+
+void tarjan(int u, int visited[], int low[], int is_stacked[], struct Stack *stk)
+{
+    visited[u] = low[u] = ++t;
+
+    push(stk, u);
+    is_stacked[u] = 1;
+
+    for (int i = 1; i < n + 1; i++)
+    {
+        int v = i;
+        if (adj[u][v])
+        {
+            if (visited[v] == -1)
+            {
+                tarjan(v, visited, low, is_stacked, stk);
+                low[u] = min(low[u], low[v]);
+            }
+            else if (is_stacked[v] == 1)
+            {
+                low[u] = min(low[u], visited[v]);
+            }
+        }
+    }
+
+    int w = 0;
+    if (low[u] == visited[u])
+    {
+        //Create header for list poi
+        POIs *head_poi = create_poi(-1, NULL);
+
+        int i;
+        for (i = 0; peek(stk) != u; i++)
+        {
+            w = pop(stk);
+            is_stacked[w] = 0;
+
+            head_poi = insert_poi(head_poi, w);
+        }
+
+        i++;
+        w = pop(stk);
+        head_poi = insert_poi(head_poi, w);
+
+        //Only circuits with 2 or more points of interest count
+        //answer 1
+        if (i >= 2)
+        {
+            n_circuits++;
+            if (head_poi != NULL)
+                head_circuit = insert_circuit(head_circuit, head_poi);
+        }
+        else
+        {
+            //Otherwise delete list
+            delete_poi(head_poi);
+        }
+
+        //If i = 1 its not considered a circuit so don't update
+        //Else update  (answer 2)
+        if (i > n_pois && i != 1)
+            n_pois = i;
+
+        is_stacked[w] = 0;
+    }
+}
+
+void dfs()
+{
+    //Set arrays
+    int visited[n + 1];
+    int low[n + 1];
+    int is_stacked[n + 1];
+    struct Stack *stk = create_stack(n + 1);
+
+    //Initialize arrays
+    memset(visited, -1, (n + 1) * sizeof(int));
+    memset(low, -1, (n + 1) * sizeof(int));
+    memset(is_stacked, 0, (n + 1) * sizeof(int));
+
+    if (DEBUG)
+    {
+        print_aux_arrays(visited, "visited");
+        print_aux_arrays(low, "low");
+        print_aux_arrays(is_stacked, "is_stacked");
+        printf("\n");
+    }
+
+    //Call tarjan for every node
+    for (int i = 1; i < n + 1; i++)
+    {
+        //Only if its not visited already
+        if (visited[i] == -1)
+        {
+            tarjan(i, visited, low, is_stacked, stk);
+        }
+    }
+}
+
+//Answer 3
+int longest_lane = 0;
+//Answer 4
+int total_lane_length = 0;
 
 int main()
 {
-    int tests;
-    scanf("%d", &tests);
+    int n_tests;
+    scanf("%d", &n_tests);
 
-    for (int i = 0; i < tests; i++)
+    while (n_tests > 0)
     {
         scanf("%d %d %d", &n, &m, &q);
 
+        //Set matrices values
+        memset(adj, 0, sizeof(adj));
+        memset(dist, 0, sizeof(dist));
+
+        //Set up adjacency and distances matrices
         int A, B, D;
-        int adj[m][m];
-
-        memset(adj, 0, sizeof(int) * m * m);
-
-        for (int j = 0; j < m; j++)
+        for (int i = 0; i < m; i++)
         {
             scanf("%d %d %d", &A, &B, &D);
-            adj[A - 1][B - 1] = D;
+
+            adj[A][B] = 1;
+            dist[A][B] = D;
         }
-        p3(adj);
+
+        //Reset global counters for each test
+        t = 0;
+        n_circuits = 0;
+        n_pois = 0;
+        head_circuit = create_circuit(NULL, NULL);
+
+        if (DEBUG)
+        {
+            print_adj();
+            printf("\n");
+            print_dist();
+            printf("\n");
+        }
+
+        //Driver function
+        dfs();
+
+        //Print answers
+        printf("%d", n_circuits);
+        if (q > 1)
+        {
+            printf(" %d", n_pois);
+        }
+        if (q > 2)
+        {
+            printf(" %d", longest_lane);
+        }
+        if (q > 3)
+        {
+            printf(" %d", total_lane_length);
+        }
+        printf("\n");
+
+        delete_circuit(head_circuit);
+
+        n_tests--;
     }
 
     return 0;
