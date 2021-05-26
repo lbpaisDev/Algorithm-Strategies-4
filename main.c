@@ -56,25 +56,25 @@ void tarjan(int v)
     low[v] = dfs[v] = t;
     t++;
     push_stack(v);
-    for(int w = 1; w <= n; w++)
+    for (int w = 1; w <= n; w++)
     {
-        if(adj[v][w][1] == 0)
+        if (adj[v][w][1] == 0)
         {
             continue;
         }
 
-        if(dfs[w] == -1)
+        if (dfs[w] == -1)
         {
             tarjan(w);
             low[v] = min(low[v], low[w]);
         }
-        else if(is_stacked[w])
+        else if (is_stacked[w])
         {
             low[v] = min(low[v], dfs[w]);
         }
     }
 
-    if(low[v] == dfs[v])
+    if (low[v] == dfs[v])
     {
         n_circuit++;
         top_circuit = 0;
@@ -85,7 +85,7 @@ void tarjan(int v)
             push_circuit(w);
         }
 
-        if(top_circuit == 1) // so ha circuitos com 2 ou mais vertices
+        if (top_circuit == 1) // so ha circuitos com 2 ou mais vertices
         {
             circuits[n_circuit][0] = 0;
             n_circuit--;
@@ -106,7 +106,6 @@ int get_circuits()
     top_circuit = 0;
     n_circuit = 0;
 
-
     //Call tarjan for every node
     for (int i = 1; i < n + 1; i++)
     {
@@ -124,9 +123,9 @@ int get_circuits()
 int get_max_circuit()
 {
     int max = 0;
-    for(int i = 1; i <= circuits[i][0]; i++)
+    for (int i = 1; i <= circuits[i][0]; i++)
     {
-        if(circuits[i][0] > max)
+        if (circuits[i][0] > max)
         {
             max = circuits[i][0];
         }
@@ -143,6 +142,17 @@ typedef struct edges
     struct edges *next;
 } Edges;
 Edges *edges_list;
+
+void free_edges_list()
+{
+    Edges *edge;
+    while (edges_list != NULL)
+    {
+        edge = edges_list;
+        edges_list = edges_list->next;
+        free(edge);
+    }
+}
 
 void insert_edge(int edge[2], int weight)
 {
@@ -191,6 +201,12 @@ int get_sorted_edges(int verts[n + 1], int num_verts)
             if (adj[verts[i]][verts[j]][0] != 0)
             {
                 int edge[2] = {verts[i], verts[j]};
+
+                if(adj[verts[j]][verts[i]][0] != 0 && adj[verts[j]][verts[i]][0] < adj[verts[i]][verts[j]][0])
+                {
+                    continue;
+                }
+                
                 insert_edge(edge, adj[verts[i]][verts[j]][0]);
                 num_edges++;
             }
@@ -203,12 +219,14 @@ int get_sorted_edges(int verts[n + 1], int num_verts)
 
 int set[1001];
 int rank[1001];
+int num_verts[1001];
 
 void make_set(int num_elements, int verts[n + 1])
 {
     for (int i = 1; i <= num_elements; i++)
     {
         set[verts[i]] = verts[i];
+        num_verts[verts[i]] = 1;
         rank[verts[i]] = 0;
     }
 }
@@ -222,26 +240,34 @@ int find_set(int a)
     return set[a];
 }
 
-void link(int a, int b)
+int link(int a, int b)
 {
+    int result;
+
     if (rank[a] > rank[b])
     {
         set[b] = a;
+        num_verts[a] += num_verts[b];
+        result = num_verts[a];
     }
     else
     {
         set[a] = b;
+        num_verts[b] += num_verts[a];
+        result = num_verts[b];
     }
 
     if (rank[a] == rank[b])
     {
         rank[b]++;
     }
+
+    return result;
 }
 
-void union_verts(int a, int b)
+int union_verts(int a, int b)
 {
-    link(find_set(a), find_set(b));
+    return link(find_set(a), find_set(b));
 }
 
 int sum_lane(int lane[][2], int num_edges)
@@ -255,7 +281,7 @@ int sum_lane(int lane[][2], int num_edges)
     return sum;
 }
 
-int get_lane_comps(int num_edges)
+int get_lane_comps(int num_edges, int num_vertices)
 {
     int lane[num_edges][2], edge = 0;
     while (edges_list != NULL)
@@ -265,12 +291,14 @@ int get_lane_comps(int num_edges)
             lane[edge][0] = edges_list->edge[0];
             lane[edge][1] = edges_list->edge[1];
             edge++;
-            union_verts(edges_list->edge[0], edges_list->edge[1]);
+
+            if(union_verts(edges_list->edge[0], edges_list->edge[1]) == num_vertices)
+            {
+                return sum_lane(lane, edge);
+            }
         }
 
-        Edges *prev = edges_list;
         edges_list = edges_list->next;
-        free(prev);
     }
 
     return sum_lane(lane, edge);
@@ -330,12 +358,12 @@ int main()
         {
             for (int i = 1; i <= circuits[0][0]; i++)
             {
-                int num_elements = circuits[i][0];
                 edges_list = NULL;
                 int num_edges = get_sorted_edges(circuits[i], circuits[i][0]);
 
-                make_set(num_elements, circuits[i]);
-                lane_comps[i - 1] = get_lane_comps(num_edges);
+                make_set(circuits[i][0], circuits[i]);
+                lane_comps[i - 1] = get_lane_comps(num_edges, circuits[i][0]);
+                free_edges_list();
             }
 
             printf(" %d", longest_lane(lane_comps));
