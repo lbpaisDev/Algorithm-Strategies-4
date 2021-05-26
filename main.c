@@ -190,9 +190,8 @@ void insert_edge(int edge[2], int weight)
     }
 }
 
-int get_sorted_edges(int verts[n + 1], int num_verts)
+void get_sorted_edges(int verts[n + 1], int num_verts)
 {
-    int num_edges = 0;
 
     for (int i = 1; i <= num_verts; i++)
     {
@@ -208,12 +207,9 @@ int get_sorted_edges(int verts[n + 1], int num_verts)
                 }
                 
                 insert_edge(edge, adj[verts[i]][verts[j]][0]);
-                num_edges++;
             }
         }
     }
-
-    return num_edges;
 }
 //=====
 
@@ -270,51 +266,28 @@ int union_verts(int a, int b)
     return link(find_set(a), find_set(b));
 }
 
-int sum_lane(int lane[][2], int num_edges)
+int get_lane_comps(int num_vertices)
 {
-    int sum = 0;
-    for (int i = 0; i < num_edges; i++)
-    {
-        sum += adj[lane[i][0]][lane[i][1]][0];
-    }
+    int edge = 0, lane_sum = 0;
 
-    return sum;
-}
-
-int get_lane_comps(int num_edges, int num_vertices)
-{
-    int lane[num_edges][2], edge = 0;
-    while (edges_list != NULL)
+    Edges *edge_node = edges_list;
+    while (edge_node != NULL)
     {
-        if (find_set(edges_list->edge[0]) != find_set(edges_list->edge[1]))
+        if (find_set(edge_node->edge[0]) != find_set(edge_node->edge[1]))
         {
-            lane[edge][0] = edges_list->edge[0];
-            lane[edge][1] = edges_list->edge[1];
+            lane_sum += edge_node->weight;
             edge++;
 
-            if(union_verts(edges_list->edge[0], edges_list->edge[1]) == num_vertices)
+            if(union_verts(edge_node->edge[0], edge_node->edge[1]) == num_vertices)
             {
-                return sum_lane(lane, edge);
+                return lane_sum;
             }
         }
 
-        edges_list = edges_list->next;
+        edge_node = edge_node->next;
     }
-
-    return sum_lane(lane, edge);
-}
-
-int longest_lane(int *lane_comps)
-{
-    int max = 0;
-    for (int i = 0; i < circuits[0][0]; i++)
-    {
-        if (lane_comps[i] > max)
-        {
-            max = lane_comps[i];
-        }
-    }
-    return max;
+    
+    return lane_sum;
 }
 
 int sum_lanes(int *lane_comps)
@@ -356,17 +329,24 @@ int main()
         int lane_comps[circuits[0][0]];
         if (q > 2)
         {
+            int max = 0;
+
             for (int i = 1; i <= circuits[0][0]; i++)
             {
                 edges_list = NULL;
-                int num_edges = get_sorted_edges(circuits[i], circuits[i][0]);
-
+                get_sorted_edges(circuits[i], circuits[i][0]);
+                
                 make_set(circuits[i][0], circuits[i]);
-                lane_comps[i - 1] = get_lane_comps(num_edges, circuits[i][0]);
+                lane_comps[i - 1] = get_lane_comps(circuits[i][0]);
                 free_edges_list();
+
+                if(lane_comps[i - 1] > max)
+                {
+                    max = lane_comps[i - 1];
+                }
             }
 
-            printf(" %d", longest_lane(lane_comps));
+            printf(" %d", max);
         }
 
         if (q > 3)
